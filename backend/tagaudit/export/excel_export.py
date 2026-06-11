@@ -106,6 +106,7 @@ class ExcelExporter:
             ('⚡ Anomalies Bitrate', 'bitrate_anomalies'),
             ('🔊 Incohér. Samplerate', 'samplerate_inconsistency'),
             ('📀 Homogénéité Codec', 'codec_homogeneity'),
+            ('⏱️ Durée nulle', 'duration_zero'),
         ],
         'integrite': [
             ('📦 Albums Incomplets', 'incomplete_albums'),
@@ -140,10 +141,12 @@ class ExcelExporter:
             ('🚫 Pochettes non-JPG', 'covers_non_jpg'),
             ('📺 Pochettes > Bluesound', 'covers_bluesound_oversized'),
             ('❌ Pochettes corrompues', 'covers_invalid'),
+            ('🔍 Pochettes trop petites', 'covers_too_small'),
         ],
         'donnees': [
             ('📁 Données Complètes', 'music_tags'),
             ('📈 Stats Genres', 'genre_stats'),
+            ('🪟 Chemins Windows', 'windows_path_issues'),
         ],
     }
 

@@ -132,6 +132,9 @@ class AuditEngine:
             ('cover_size', self._audit_cover_size),
             ('cover_non_uniform', self._audit_cover_non_uniform),
             ('covers_invalid', self._audit_covers_invalid),
+            ('covers_too_small', self._audit_covers_too_small),
+            ('duration_zero', self._audit_duration_zero),
+            ('windows_path_issues', self._audit_windows_path_issues),
             ('codec_homogeneity', self._audit_codec_homogeneity),
             ('genre_stats', self._audit_genre_stats),
             ('case_inconsistency_artist', self._audit_case_inconsistency_artist),
@@ -943,6 +946,51 @@ class AuditEngine:
         cols = ['filepath', 'parent_folder', 'album', 'cover_format', 'cover_error']
         available = [c for c in cols if c in df.columns]
         return df[available].sort_values('parent_folder') if 'parent_folder' in df.columns else df[available]
+
+    def _audit_covers_too_small(self) -> pd.DataFrame:
+        # Pochettes trop petites (< 300px, cf MIN_COVER_SIZE)
+        if not self._has_cols('has_cover', 'cover_width', 'cover_height'):
+            return pd.DataFrame()
+        df = self.df[self.df['has_cover'] == 'Yes'].copy()
+        if df.empty:
+            return pd.DataFrame()
+        df['w'] = pd.to_numeric(df['cover_width'], errors='coerce').fillna(0)
+        df['h'] = pd.to_numeric(df['cover_height'], errors='coerce').fillna(0)
+        df = df[(df['w'] > 0) & (df['h'] > 0) & ((df['w'] < 300) | (df['h'] < 300))]
+        if df.empty:
+            return pd.DataFrame()
+        cols = ['filepath', 'album', 'cover_width', 'cover_height']
+        available = [c for c in cols if c in df.columns]
+        return df[available].sort_values('cover_width')
+
+    def _audit_duration_zero(self) -> pd.DataFrame:
+        # Fichiers a duree nulle/quasi-nulle (tronques)
+        if not self._has_cols('duration_seconds'):
+            return pd.DataFrame()
+        df = self.df.copy()
+        df['dur_num'] = pd.to_numeric(df['duration_seconds'], errors='coerce').fillna(0)
+        df = df[df['dur_num'] < 1]
+        if df.empty:
+            return pd.DataFrame()
+        cols = ['filepath', 'album', 'duration', 'duration_seconds']
+        available = [c for c in cols if c in df.columns]
+        return df[available]
+
+    def _audit_windows_path_issues(self) -> pd.DataFrame:
+        # Caracteres illegaux Windows ou chemin > 240 (EZ CD / SMB)
+        if not self._has_cols('filepath'):
+            return pd.DataFrame()
+        df = self.df.copy()
+        df['path_len'] = df['filepath'].astype(str).str.len()
+        fname = df['filepath'].astype(str).str.split('/').str[-1]
+        illegal = fname.str.contains(r'[<>|?*:]', regex=True, na=False) | fname.str.contains(chr(34), regex=False, na=False)
+        too_long = df['path_len'] > 240
+        df = df[illegal | too_long]
+        if df.empty:
+            return pd.DataFrame()
+        cols = ['filepath', 'album', 'path_len']
+        available = [c for c in cols if c in df.columns]
+        return df[available].sort_values('path_len', ascending=False)
 
     def _audit_cover_non_uniform(self) -> pd.DataFrame:
         """Covers non-uniformes"""
