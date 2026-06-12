@@ -14,6 +14,7 @@ import html as _html
 import os
 import re
 import math
+from urllib.parse import quote
 import pandas as pd
 from datetime import datetime
 from core import config
@@ -25,6 +26,9 @@ DANGER_KEYS = {
     "covers_invalid", "missing_metadata", "duplicates_md5",
     "duplicates_artist_title", "incomplete_albums", "duration_zero",
 }
+# Audits INFORMATIFS (listings/recaps, pas des defauts) : exclus du comptage
+# des problemes, des badges d'onglet et des flags "Par dossier".
+INFO_KEYS = {"cover_size", "quality_analysis"}
 GROUP_LABELS = {
     "qualite": "Qualite", "integrite": "Integrite", "metadonnees": "Metadonnees",
     "doublons": "Doublons", "casse": "Casse", "images": "Pochettes", "donnees": "Donnees",
@@ -59,7 +63,13 @@ def _win(p):
 
 
 def _file_uri(winpath):
-    return "file:///" + winpath.replace("\\", "/")
+    # percent-encode pour ne pas casser sur # % & ? espaces / accents
+    return "file:///" + quote(winpath.replace("\\", "/"), safe=":/")
+
+
+def _ezcd_uri(winpath):
+    # protocole perso ezcd: (chemin entierement encode -> decode par le wrapper)
+    return "ezcd:" + quote(winpath, safe="")
 
 
 def _clean_label(name):
@@ -159,7 +169,7 @@ def _problems_by_category(ar, groups):
             continue
         tot = 0
         for _, data_key in sheets:
-            if data_key in KPI_KEYS or data_key in SKIP_KEYS:
+            if data_key in KPI_KEYS or data_key in SKIP_KEYS or data_key in INFO_KEYS:
                 continue
             tot += report_model.get_row_count(ar, data_key)
         if tot > 0:
@@ -206,7 +216,7 @@ def _dir_aggregate(ar, df, groups):
         if group_name in ("cockpit", "kpi", "donnees"):
             continue
         for sheet_name, data_key in sheets:
-            if data_key in KPI_KEYS or data_key in SKIP_KEYS:
+            if data_key in KPI_KEYS or data_key in SKIP_KEYS or data_key in INFO_KEYS:
                 continue
             data = ar.get(data_key)
             if not isinstance(data, pd.DataFrame) or data.empty:
@@ -222,7 +232,7 @@ def _dir_aggregate(ar, df, groups):
         win = _win(d)
         rows.append({
             "name": i.get("parent") or i.get("album") or os.path.basename(d) or d,
-            "win": win, "uri": _file_uri(win),
+            "win": win, "uri": _file_uri(win), "ezcd": _ezcd_uri(win),
             "labels": sorted(labels.items()), "n": i.get("n", 0),
         })
     rows.sort(key=lambda r: (-len(r["labels"]), -r["n"]))
@@ -264,7 +274,7 @@ def export_to_html():
     n_dirs = len(dirs)
     n_problems = sum(report_model.get_row_count(ar, dk)
                      for g, sh in groups.items() if g not in ("cockpit", "kpi", "donnees")
-                     for _, dk in sh if dk not in KPI_KEYS and dk not in SKIP_KEYS)
+                     for _, dk in sh if dk not in KPI_KEYS and dk not in SKIP_KEYS and dk not in INFO_KEYS)
 
     p = []
     p.append("<!doctype html><html lang='fr'><head><meta charset='utf-8'>")
@@ -294,7 +304,7 @@ def export_to_html():
         if g in ("cockpit", "kpi"):
             continue
         cnt = sum(report_model.get_row_count(ar, dk) for _, dk in groups[g]
-                  if dk not in KPI_KEYS and dk not in SKIP_KEYS)
+                  if dk not in KPI_KEYS and dk not in SKIP_KEYS and dk not in INFO_KEYS)
         tabs.append((g, GROUP_LABELS.get(g, g), cnt if cnt else None))
     p.append("<div class='ztabs'>")
     for i, (tid, lbl, cnt) in enumerate(tabs):
@@ -337,7 +347,8 @@ def export_to_html():
             f"<div class='zbadges'>{badges}</div>"
             f"<div class='zpathline'><span class='zpath'>{_html.escape(r['win'])}</span>"
             f"<button class='zbtn zmini' onclick=\"ztCopy(this,'{winj}')\">copier</button>"
-            f"<a class='zlink' href=\"{_html.escape(r['uri'])}\">ouvrir</a></div></div>"
+            f"<a class='zlink' href=\"{_html.escape(r['uri'])}\">ouvrir</a>"
+            f"<a class='zlink zezcd' href=\"{_html.escape(r['ezcd'])}\" title='ouvrir ce dossier dans EZ CD Audio Converter'>EZ CD</a></div></div>"
             f"<div class='zrow-n zmut'>{r['n']} fichiers</div></div>"
         )
     p.append("</div></div>")
@@ -352,9 +363,12 @@ def export_to_html():
                 continue
             data = ar.get(data_key)
             n = report_model.get_row_count(ar, data_key)
+            is_info = data_key in INFO_KEYS
+            badge_cls = "zb-ok" if (is_info or not n) else "zb-danger"
+            info_tag = " <span class='zmut' style='font-size:11px;font-weight:400'>info</span>" if is_info else ""
             p.append("<div class='zcard'>")
-            p.append(f"<div class='zcard-h'><h3>{_html.escape(_clean_label(sheet_name))}</h3>"
-                     f"<span class='zb {'zb-danger' if n else 'zb-ok'}'>{n}</span></div>")
+            p.append(f"<div class='zcard-h'><h3>{_html.escape(_clean_label(sheet_name))}{info_tag}</h3>"
+                     f"<span class='zb {badge_cls}'>{n}</span></div>")
             if isinstance(data, pd.DataFrame) and not data.empty:
                 p.append("<input class='zflt' placeholder='filtrer...' oninput='ztTblFilter(this)'>")
                 p.append("<div class='ztw'>" + _table_html(data) + "</div>")
@@ -429,6 +443,7 @@ font-size:12px;cursor:pointer}
 .zmini{padding:3px 8px}
 .zlink{font-size:12px;color:#2E86AB;text-decoration:none}
 .zlink:hover{text-decoration:underline}
+.zezcd{color:#D85A30;font-weight:600}
 .ztw{overflow:auto;max-height:440px;border:1px solid var(--zborder);border-radius:8px}
 table.ztbl{border-collapse:collapse;width:100%;font-size:12.5px}
 table.ztbl thead th{position:sticky;top:0;background:var(--zbg);color:var(--zfg);text-align:left;padding:7px 9px;
@@ -442,8 +457,12 @@ _JS = r"""
 (function(){var m=window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches;
 document.getElementById('zt').classList.add(m?'dark':'light');})();
 function ztTheme(){document.getElementById('zt').classList.toggle('dark');}
-function ztCopy(btn,path){try{if(navigator.clipboard)navigator.clipboard.writeText(path);}catch(e){}
-var t=btn.textContent;btn.textContent='copie !';setTimeout(function(){btn.textContent=t;},1200);}
+function ztCopy(btn,path){var ok=false;
+try{if(navigator.clipboard&&window.isSecureContext){navigator.clipboard.writeText(path);ok=true;}}catch(e){}
+if(!ok){try{var ta=document.createElement('textarea');ta.value=path;ta.setAttribute('readonly','');
+ta.style.position='fixed';ta.style.top='-1000px';ta.style.opacity='0';document.body.appendChild(ta);
+ta.focus();ta.select();ok=document.execCommand('copy');document.body.removeChild(ta);}catch(e){}}
+var t=btn.textContent;btn.textContent=ok?'copie !':'selectionne+Ctrl+C';setTimeout(function(){btn.textContent=t;},1500);}
 function ztTblFilter(inp){var q=(inp.value||'').toLowerCase();var tb=inp.parentNode.querySelector('table tbody');
 if(!tb)return;Array.prototype.forEach.call(tb.rows,function(r){r.style.display=r.innerText.toLowerCase().indexOf(q)>-1?'':'none';});}
 document.querySelectorAll('.ztab').forEach(function(b){b.addEventListener('click',function(){
