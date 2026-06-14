@@ -983,6 +983,13 @@ def api_health():
     return {"ok": True, "backend": "ok", "pcloud_mount": "ok"}
 
 
+@app.get("/api/selfcheck")
+def api_selfcheck():
+    """F19 - auto-diagnostic d'integrite runtime (lecture seule, sans scan FUSE)."""
+    from selfcheck import run_selfcheck
+    return run_selfcheck()
+
+
 # ── F4 — Playlist .m3u8 des albums à réparer (EZ CD) ─────────────────────
 @app.get("/api/playlist/repair-preview")
 def api_playlist_repair_preview(pc_root: str = Query(""),

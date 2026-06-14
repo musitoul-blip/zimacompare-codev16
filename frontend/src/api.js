@@ -54,6 +54,7 @@ export const api = {
   exportContext:     ()             => req('GET',    '/export-context'),
   // NEW v3.8
   smartDevices:      ()             => req('GET',    '/smart/devices'),
+  selfcheck:         ()             => req('GET',    '/selfcheck'),
   smartRefresh:      ()             => req('POST',   '/smart/refresh'),
   cleanScan:         (body)         => req('POST',   '/clean/scan', body),
   cleanPlan:         ()             => req('GET',    '/clean/plan'),

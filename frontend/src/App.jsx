@@ -8,6 +8,7 @@ import TabCloud    from './components/TabCloud.jsx'
 import TabSystem   from './components/TabSystem.jsx'
 import TabInfo     from './components/TabInfo.jsx'
 import TabZimatag from './components/TabZimatag.jsx'
+import TabVerification from './components/TabVerification.jsx'
 
 const STATE_COLOR = {
   IDLE:      '#64748b',
@@ -93,6 +94,7 @@ export default function App() {
           { id:'history', label:'📋 Historique'  },
           { id:'system',  label:'⚙ Système'     },
           { id:'info',    label:'📊 Information' },
+          { id:'verif',   label:'✅ Verification' },
         ].map(t => (
           <button key={t.id} onClick={() => setTab(t.id)} style={{
             background:'none', border:'none', color: tab===t.id ? 'var(--accent)' : 'var(--muted)',
@@ -113,6 +115,7 @@ export default function App() {
         {tab === 'history' && <TabHistory />}
         {tab === 'system'  && <TabSystem />}
         {tab === 'info'    && <TabInfo />}
+        {tab === 'verif'   && <TabVerification />}
       </main>
     </div>
   )
