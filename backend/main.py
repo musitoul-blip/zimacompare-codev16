@@ -816,6 +816,30 @@ def api_export_context():
     except Exception as e:
         logger.warning(f"[CONTEXT] smart summary failed: {e}")
 
+    # A3 (v3.10) : diagnostic enrichi pour reprise sans deviner
+    try:
+        from selfcheck import run_selfcheck
+        _sc = run_selfcheck()
+        selfcheck_summary = {"verdict": _sc.get("verdict"),
+                             "checks": [{"id": c.get("id"), "status": c.get("status"),
+                                         "label": c.get("label"), "detail": c.get("detail")}
+                                        for c in _sc.get("checks", [])]}
+    except Exception as _e:
+        selfcheck_summary = {"verdict": "?", "error": str(_e)}
+    try:
+        _ae = Path("/app/tagaudit/audit/audit_engine.py").read_text(encoding="utf-8")
+        _audits = sorted({ln.split("def ", 1)[1].split("(", 1)[0].strip()
+                          for ln in _ae.splitlines()
+                          if ln.lstrip().startswith("def _audit_")})
+    except Exception:
+        _audits = []
+    try:
+        from config import _DISK_TIMEOUT_LOCAL_S, _DISK_TIMEOUT_NETWORK_S
+        thresholds = {"disk_timeout_local_s": _DISK_TIMEOUT_LOCAL_S,
+                      "disk_timeout_network_s": _DISK_TIMEOUT_NETWORK_S,
+                      "smart_watch_years": 3, "smart_old_years": 5}
+    except Exception:
+        thresholds = {}
     return {
         "schema_version": "1.1",
         "exported_at":    datetime.now().isoformat(timespec='seconds'),
@@ -836,6 +860,9 @@ def api_export_context():
         "installers":    list_installers(),
         "recent_logs":   recent_logs,
         "smart":         smart_summary,
+        "selfcheck":     selfcheck_summary,
+        "audits":        {"count": len(_audits), "registered": _audits},
+        "thresholds":    thresholds,
         "notes_for_assistant": (
             "État complet d'une instance ZimaCompare&Tag. Pour reprendre une session de dev : "
             "cloner le dépôt git (codevN, voir 'git') et redéployer via compose-install.yml ; "
