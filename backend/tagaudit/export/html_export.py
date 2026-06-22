@@ -14,6 +14,8 @@ import html as _html
 import os
 import re
 import math
+import base64 as _b64
+from pathlib import Path as _Path
 from urllib.parse import quote
 import pandas as pd
 from datetime import datetime
@@ -351,13 +353,17 @@ def export_to_html():
     p.append("<!doctype html><html lang='fr'><head><meta charset='utf-8'>")
     p.append("<meta name='viewport' content='width=device-width, initial-scale=1'>")
     p.append("<title>ZimaTAG - Rapport d'audit</title>")
+    p.append(_favicon_link())
     p.append("<style>" + _CSS + "</style></head><body>")
     p.append("<div id='zt' class='zt'>")
 
     # ---- header ----
     p.append("<header class='zhead'>")
+    p.append("<div class='zhead-l'>")
+    p.append(_logo_img())
     p.append(f"<div><h1>ZimaCompare&Tag v{APP_VERSION} &middot; rapport d'audit</h1>")
     p.append(f"<p class='zsub'>{total} fichiers &middot; {n_albums} albums &middot; genere le {now}</p></div>")
+    p.append("</div>")
     p.append("<div class='zhead-r'>")
     p.append("<button id='zth' class='zbtn' onclick='ztTheme()' aria-label='theme'>clair / sombre</button>")
     p.append("<div class='zgauge'>" + _svg_gauge(score) + "<span class='zmut'>health<br>score</span></div>")
@@ -484,6 +490,60 @@ def export_to_html():
     return "".join(p)
 
 
+_ICONE_DIR = _Path(os.environ.get("ZIMA_ICONE_DIR", "/app_data/icone"))
+
+
+def _read_icon_b64(filename):
+    """Lit icone/<filename> et renvoie son base64 (str), ou None si absent/illisible."""
+    try:
+        f = _ICONE_DIR / filename
+        if f.is_file():
+            return _b64.b64encode(f.read_bytes()).decode('ascii')
+    except Exception:
+        pass
+    return None
+
+
+def _favicon_link():
+    """<link> favicon incruste en data-URI, ou '' si le fichier est absent."""
+    b = _read_icon_b64("favicon.ico")
+    if not b:
+        return ""
+    return ("<link rel='icon' type='image/x-icon' "
+            "href='data:image/x-icon;base64,%s'>" % b)
+
+
+def _logo_img(height=96):
+    """<img> du logo d'en-tete (PNG redimensionne a `height` px, data-URI),
+    ou '' si absent/illisible. Redimensionnement Pillow pour eviter d'incruster
+    le PNG source (~1.4 Mo) tel quel."""
+    try:
+        f = _ICONE_DIR / "Icone zimacompare.png"
+        if not f.is_file():
+            return ""
+        from io import BytesIO
+        from PIL import Image
+        try:
+            _resample = Image.Resampling.LANCZOS
+        except AttributeError:
+            _resample = Image.LANCZOS
+        im = Image.open(f)
+        im.load()
+        if im.mode not in ("RGB", "RGBA"):
+            im = im.convert("RGBA")
+        w, h = im.size
+        if h > height:
+            nw = max(1, int(round(w * height / float(h))))
+            im = im.resize((nw, height), _resample)
+        buf = BytesIO()
+        im.save(buf, format="PNG", optimize=True)
+        b = _b64.b64encode(buf.getvalue()).decode('ascii')
+        return ("<img class='zlogo' alt='ZimaCompare&Tag' "
+                "src='data:image/png;base64,%s'>" % b)
+    except Exception:
+        return ""
+
+
 _CSS = r"""
 *{box-sizing:border-box}
 body{margin:0}
@@ -498,6 +558,8 @@ line-height:1.5;min-height:100vh}
 background:var(--zsurf);border-bottom:1px solid var(--zborder)}
 .zsub{margin:5px 0 0;color:var(--zmut);font-size:13px}
 .zhead-r{display:flex;align-items:center;gap:16px}
+.zhead-l{display:flex;align-items:center;gap:14px}
+.zlogo{height:48px;width:auto;display:block;border-radius:8px}
 .zgauge{display:flex;align-items:center;gap:8px;font-size:12px}
 .zkpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;padding:18px 26px 0}
 .zkpi{background:var(--zsurf);border:1px solid var(--zborder);border-radius:12px;padding:12px 14px}
