@@ -56,7 +56,7 @@ def run_selfcheck():
     except Exception as e:
         checks.append(_c("rclone", "rclone rc (RCLONE_RC_PASS)", "fail", str(e)))
 
-    # 4 - SMART disques (seuils F11 : watch >=3 ans, old >=5 ans)
+    # 4 - SMART disques (F19-tuning : warn seulement a old >=5 ans ou SMART_KO ; 3-5 ans = info surveillance)
     try:
         import smartinfo
         worst = "ok"
@@ -71,12 +71,13 @@ def run_selfcheck():
             tag = "ok"
             if smart_ok is False:
                 tag = "fail"
-            elif yrs >= 3:
+            elif yrs >= 5:
                 tag = "warn"
             if _ORDER[tag] > _ORDER[worst]:
                 worst = tag
-            details.append("%s %.1fan%s%s" % (
+            details.append("%s %.1fan%s%s%s" % (
                 name, yrs, "s" if yrs >= 2 else "",
+                " surveillance" if (smart_ok is not False and 3 <= yrs < 5) else "",
                 " SMART_KO" if smart_ok is False else ""))
         checks.append(_c("smart", "Disques SMART", worst,
                          ", ".join(details) or "aucun disque"))
