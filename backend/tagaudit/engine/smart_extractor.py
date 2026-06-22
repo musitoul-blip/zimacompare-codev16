@@ -58,6 +58,8 @@ class SmartExtractor:
                     if need_valid:
                         result['cover_valid'] = cover_info.get('cover_valid', '')
                         result['cover_error'] = cover_info.get('cover_error', '')
+                # F23(a) : nombre d'images embarquees dans le fichier (mutagen)
+                result['cover_count'] = self._count_covers(filepath)
             
         except Exception as e:
             result['error'] = str(e)
@@ -84,7 +86,8 @@ class SmartExtractor:
             'samplerate': '', 'channels': '', 'bitdepth': '', 'codec': '',
             'id3_version': '', 'has_cover': 'No', 'cover_size': 0,
             'cover_format': '', 'cover_width': 0, 'cover_height': 0,
-            'cover_md5': '', 'cover_valid': '', 'cover_error': '', 'error': ''
+            'cover_md5': '', 'cover_valid': '', 'cover_error': '',
+            'cover_count': 0, 'error': ''
         }
     
     def _compute_file_md5(self, filepath: Path) -> str:
@@ -116,6 +119,29 @@ class SmartExtractor:
         except Exception:
             return ''
     
+    def _count_covers(self, filepath: Path) -> int:
+        """F23(a) - compte les images embarquees (mutagen).
+        MP3 frames APIC ; FLAC pictures ; M4A/MP4 entrees 'covr'. 0 si indetermine."""
+        ext = filepath.suffix.lower()
+        try:
+            if ext == '.mp3':
+                from mutagen.id3 import ID3
+                try:
+                    return len(ID3(str(filepath)).getall('APIC'))
+                except Exception:
+                    return 0
+            if ext == '.flac':
+                from mutagen.flac import FLAC
+                return len(FLAC(str(filepath)).pictures)
+            if ext in ('.m4a', '.mp4'):
+                from mutagen.mp4 import MP4
+                tags = MP4(str(filepath)).tags
+                covr = tags.get('covr') if tags else None
+                return len(covr) if covr else 0
+        except Exception as e:
+            logger.debug(f"_count_covers({filepath.name}): {e}")
+        return 0
+
     def _extract_cover_info(self, filepath: Path) -> Dict[str, object]:
         """Extrait les infos de pochette en UNE SEULE lecture du fichier.
         

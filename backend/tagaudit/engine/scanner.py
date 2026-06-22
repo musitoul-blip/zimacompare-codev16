@@ -37,7 +37,7 @@ class BackgroundScanner:
         'encoder', 'duration', 'duration_seconds', 'bitrate', 'samplerate',
         'channels', 'bitdepth', 'codec', 'id3_version', 'has_cover',
         'cover_size', 'cover_format', 'cover_width', 'cover_height',
-        'cover_md5', 'cover_valid', 'cover_error', 'error'
+        'cover_md5', 'cover_valid', 'cover_error', 'cover_count', 'error'
     ]
     
     # [27] Intervalle minimum entre deux écritures de l'état (en secondes).

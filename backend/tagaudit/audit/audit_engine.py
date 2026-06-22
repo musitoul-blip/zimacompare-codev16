@@ -138,6 +138,7 @@ class AuditEngine:
             ('cover_non_uniform', self._audit_cover_non_uniform),
             ('covers_invalid', self._audit_covers_invalid),
             ('covers_too_small', self._audit_covers_too_small),
+            ('multiple_covers', self._audit_multiple_covers),
             ('duration_zero', self._audit_duration_zero),
             ('windows_path_issues', self._audit_windows_path_issues),
             ('codec_homogeneity', self._audit_codec_homogeneity),
@@ -1155,6 +1156,19 @@ class AuditEngine:
         cols = ['filepath', 'album', 'cover_width', 'cover_height']
         available = [c for c in cols if c in df.columns]
         return df[available].sort_values('cover_width')
+
+    def _audit_multiple_covers(self) -> pd.DataFrame:
+        # F23(a) - Fichiers embarquant plusieurs images (cover_count > 1)
+        if not self._has_cols('cover_count'):
+            return pd.DataFrame()
+        df = self.df.copy()
+        df['cc_num'] = pd.to_numeric(df['cover_count'], errors='coerce').fillna(0)
+        df = df[df['cc_num'] > 1]
+        if df.empty:
+            return pd.DataFrame()
+        cols = ['filepath', 'parent_folder', 'album', 'cover_count']
+        available = [c for c in cols if c in df.columns]
+        return df[available].sort_values('parent_folder') if 'parent_folder' in df.columns else df[available]
 
     def _audit_duration_zero(self) -> pd.DataFrame:
         # Fichiers a duree nulle/quasi-nulle (tronques)

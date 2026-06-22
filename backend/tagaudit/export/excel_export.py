@@ -147,6 +147,7 @@ class ExcelExporter:
             ('📺 Pochettes > Bluesound', 'covers_bluesound_oversized'),
             ('❌ Pochettes corrompues', 'covers_invalid'),
             ('🔍 Pochettes trop petites', 'covers_too_small'),
+            ('🖼️ Images multiples', 'multiple_covers'),
         ],
         'donnees': [
             ('📁 Données Complètes', 'music_tags'),
@@ -183,6 +184,7 @@ class ExcelExporter:
         'case_inconsistency_genre': 0.5,
         'cover_size': 0.3,
         'cover_non_uniform': 0.3,
+        'multiple_covers': 0.3,
     }
 
     def __init__(self):
