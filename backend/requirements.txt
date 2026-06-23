@@ -9,6 +9,6 @@ aiofiles==25.1.0
 pathspec==1.1.1
 python-multipart==0.0.32
 pandas==3.0.3
-numpy==2.4.6
-mutagen==1.47.0
+numpy==2.5.0
+mutagen==1.48.0
 Pillow==12.2.0
