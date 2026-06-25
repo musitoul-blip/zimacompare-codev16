@@ -165,24 +165,24 @@ class ExcelExporter:
         'mojibake': 0.8,
         'incomplete_albums': 2.0,
         'track_gaps': 1.5,
-        'bitrate_anomalies': 1.5,
+        'bitrate_anomalies': 0.0,  # T10 Lot A (etait 1.5)
         'bitrate_mixed_album': 0.0,
         'samplerate_inconsistency': 1.0,
         'id3_version_inconsistency': 0.0,
         'albumartist_typo': 0.0,
         'folder_artist_mismatch': 0.0,
         'invalid_year_format': 1.5,
-        'year_inconsistency': 1.0,
+        'year_inconsistency': 0.0,  # T10 Lot A (etait 1.0)
         'genre_inconsistency': 0.8,
         'albumartist_consistency': 1.2,
-        'album_name_consistency': 1.2,
+        'album_name_consistency': 0.0,  # T10 Lot A (etait 1.2)
         'albumartist_vs_artist': 0.0,
         'missing_genre_albums': 1.0,
         'missing_year_albums': 1.0,
         'case_inconsistency_artist': 0.5,
-        'case_inconsistency_album': 0.5,
+        'case_inconsistency_album': 0.0,  # T10 Lot A (etait 0.5)
         'case_inconsistency_genre': 0.5,
-        'cover_size': 0.3,
+        'cover_size': 0.0,  # T10 Lot A (etait 0.3)
         'cover_non_uniform': 0.3,
         'multiple_covers': 0.3,
     }
