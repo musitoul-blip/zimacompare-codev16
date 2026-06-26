@@ -337,15 +337,17 @@ def export_to_html():
     from audit import report_model
     exp = _prepare()
     # T10 Lot F2 : classements lus depuis la base (edition UI live)
-    global INFO_KEYS, KPI_KEYS, SKIP_KEYS
+    global INFO_KEYS, KPI_KEYS, SKIP_KEYS, PARDOSSIER_KEEP  # T10 Lot G2
     try:
         audit_registry.init_and_seed()
         _ik = audit_registry.get_info_keys()
         _kk = audit_registry.get_kpi_keys()
         _sk = audit_registry.get_skip_keys()
+        _pd = audit_registry.get_pardossier_keep()  # T10 Lot G2
         if _ik: INFO_KEYS = _ik
         if _kk: KPI_KEYS = _kk
         if _sk: SKIP_KEYS = _sk
+        PARDOSSIER_KEEP = _pd  # T10 Lot G2 : peut etre vide (aucun INFO repeche)
     except Exception:
         pass
     ar = exp.audit_results

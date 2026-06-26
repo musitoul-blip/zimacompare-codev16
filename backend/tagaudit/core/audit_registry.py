@@ -27,6 +27,7 @@ CREATE TABLE IF NOT EXISTS audit_registry (
     ordre            INTEGER DEFAULT 0,
     decision         TEXT    DEFAULT '',
     note             TEXT    DEFAULT '',
+    par_dossier      INTEGER DEFAULT 0,  -- T10 Lot G1
     updated_at       TEXT
 );
 """
@@ -114,6 +115,8 @@ _SEED_WEIGHTS = {
 # Classements (etat post-E2 + correction bluesound -> INFO).
 _SEED_KPI = {"kpi_dashboard", "kpi_years", "kpi_genres", "kpi_albumartists", "genre_stats"}
 _SEED_SKIP = {"music_tags"}
+# T10 Lot G1 : audits INFO repeches dans la vue "Par dossier" (ex-PARDOSSIER_KEEP)
+_SEED_PARDOSSIER = {"bitrate_mixed_album", "id3_version_inconsistency", "albumartist_typo", "folder_artist_mismatch"}
 _SEED_INFO = {
     "cover_size", "quality_analysis", "albumartist_vs_artist", "duplicates_artist_title",
     "bitrate_mixed_album", "id3_version_inconsistency", "albumartist_typo",
@@ -137,11 +140,22 @@ def connect(db_path=None):
     conn.row_factory = sqlite3.Row
     return conn
 
+def _migrate(conn):
+    """T10 Lot G1 : migration douce - ajoute par_dossier si absente, peuple les 4 INFO repeches."""
+    cols = [r[1] for r in conn.execute("PRAGMA table_info(audit_registry)").fetchall()]
+    if 'par_dossier' not in cols:
+        conn.execute("ALTER TABLE audit_registry ADD COLUMN par_dossier INTEGER DEFAULT 0")
+        qs = ','.join('?' * len(_SEED_PARDOSSIER))
+        conn.execute("UPDATE audit_registry SET par_dossier=1 WHERE audit_key IN (%s)" % qs,
+                     tuple(_SEED_PARDOSSIER))
+        conn.commit()
+
 def init_and_seed(db_path=None, force=False):
     """Cree la table si absente et la seed si vide (ou force=True). Idempotent."""
     conn = connect(db_path)
     try:
         conn.executescript(SCHEMA)
+        _migrate(conn)  # T10 Lot G1 : migration avant le check n>0
         cur = conn.execute("SELECT COUNT(*) AS n FROM audit_registry")
         n = cur.fetchone()["n"]
         if n > 0 and not force:
@@ -156,10 +170,10 @@ def init_and_seed(db_path=None, force=False):
                 conn.execute(
                     "INSERT OR REPLACE INTO audit_registry "
                     "(audit_key, libelle, onglet_cible, classement_cible, dans_health, "
-                    " poids_cible, actif, ordre, decision, note, updated_at) "
-                    "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                    " poids_cible, actif, ordre, decision, note, par_dossier, updated_at) "
+                    "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
                     (key, libelle, group, _classement(key), 1 if poids > 0 else 0,
-                     poids, 1, ordre, "", "", ts),
+                     poids, 1, ordre, "", "", 1 if key in _SEED_PARDOSSIER else 0, ts),
                 )
                 ordre += 1
         conn.commit()
@@ -188,6 +202,9 @@ def get_kpi_keys(db_path=None):
 def get_skip_keys(db_path=None):
     return {r["audit_key"] for r in get_all(db_path) if r["classement_cible"] == "SKIP"}
 
+def get_pardossier_keep(db_path=None):  # T10 Lot G1
+    return {r["audit_key"] for r in get_all(db_path) if r.get("par_dossier")}
+
 def get_sheet_groups(db_path=None):
     """Reconstitue SHEET_GROUPS {groupe: [(libelle, key), ...]} dans l'ordre."""
     groups = {}
@@ -201,7 +218,7 @@ def export_json(db_path=None):
 def update_row(audit_key, fields, db_path=None):
     """Met a jour les champs humains d'une ligne. fields = dict de colonnes."""
     allowed = {"libelle", "onglet_cible", "classement_cible", "dans_health",
-               "poids_cible", "actif", "ordre", "decision", "note"}
+               "poids_cible", "actif", "ordre", "decision", "note", "par_dossier"}
     sets = {k: v for k, v in fields.items() if k in allowed}
     if not sets:
         return False
