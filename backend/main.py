@@ -296,6 +296,21 @@ def api_audit_registry_update(audit_key: str, body: AuditRegistryUpdate):
         raise HTTPException(status_code=404, detail="audit_key inconnu ou champs invalides")
     return {"status": "ok", "audit_key": audit_key, "updated": fields}
 
+# T10 Lot H2 : preferences UI (cle/valeur JSON, ex. largeurs de colonnes)
+class UiPrefBody(BaseModel):
+    value: object = None
+
+@app.get("/api/ui-prefs/{key}")
+def api_ui_pref_get(key: str):
+    from tagaudit.core import audit_registry as _ar
+    return {"key": key, "value": _ar.get_ui_pref(key)}
+
+@app.post("/api/ui-prefs/{key}")
+def api_ui_pref_set(key: str, body: UiPrefBody):
+    from tagaudit.core import audit_registry as _ar
+    _ar.set_ui_pref(key, body.value)
+    return {"status": "ok", "key": key}
+
 @app.get("/api/reports")
 def api_reports():
     if not REPORTS_DIR.exists(): return []

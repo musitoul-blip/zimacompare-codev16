@@ -142,6 +142,8 @@ def connect(db_path=None):
 
 def _migrate(conn):
     """T10 Lot G1 : migration douce - ajoute par_dossier si absente, peuple les 4 INFO repeches."""
+    # T10 Lot H1 : table des preferences UI (cle/valeur JSON, ex. largeurs de colonnes)
+    conn.execute("CREATE TABLE IF NOT EXISTS ui_prefs (pref_key TEXT PRIMARY KEY, value TEXT, updated_at TEXT)")
     cols = [r[1] for r in conn.execute("PRAGMA table_info(audit_registry)").fetchall()]
     if 'par_dossier' not in cols:
         conn.execute("ALTER TABLE audit_registry ADD COLUMN par_dossier INTEGER DEFAULT 0")
@@ -230,5 +232,33 @@ def update_row(audit_key, fields, db_path=None):
         cur = conn.execute("UPDATE audit_registry SET %s WHERE audit_key = ?" % cols, vals)
         conn.commit()
         return cur.rowcount > 0  # rowcount check F3 : 0 si audit_key inconnu -> False
+    finally:
+        conn.close()
+
+# --- T10 Lot H1 : preferences UI (cle/valeur JSON) ---
+def get_ui_pref(key, db_path=None):
+    """Retourne la valeur JSON decodee d'une preference UI, ou None si absente."""
+    conn = connect(db_path)
+    try:
+        conn.execute("CREATE TABLE IF NOT EXISTS ui_prefs (pref_key TEXT PRIMARY KEY, value TEXT, updated_at TEXT)")
+        row = conn.execute("SELECT value FROM ui_prefs WHERE pref_key = ?", (key,)).fetchone()
+        if not row:
+            return None
+        try:
+            return json.loads(row["value"])
+        except Exception:
+            return None
+    finally:
+        conn.close()
+
+def set_ui_pref(key, value, db_path=None):
+    """Stocke une preference UI (value serialisee en JSON). Idempotent (upsert)."""
+    conn = connect(db_path)
+    try:
+        conn.execute("CREATE TABLE IF NOT EXISTS ui_prefs (pref_key TEXT PRIMARY KEY, value TEXT, updated_at TEXT)")
+        conn.execute("INSERT OR REPLACE INTO ui_prefs (pref_key, value, updated_at) VALUES (?,?,?)",
+                     (key, json.dumps(value, ensure_ascii=False), _now()))
+        conn.commit()
+        return True
     finally:
         conn.close()
