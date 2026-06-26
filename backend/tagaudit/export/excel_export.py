@@ -558,12 +558,14 @@ class ExcelExporter:
         df = self.df_main
         if 'cover_size' not in df.columns:
             return pd.DataFrame()
+        # T10 Lot I2 : seuil editable (audit_params), fallback = constante de classe
+        max_kb = audit_registry.get_audit_param('bluesound_max_kb', self.BLUESOUND_MAX_SIZE_KB)
         def _to_int_series(s):
             return pd.to_numeric(s, errors='coerce').fillna(0).astype(int)
         has_cover_mask = (df['has_cover'] == 'Yes') \
             if 'has_cover' in df.columns else pd.Series(True, index=df.index)
         size_bytes = _to_int_series(df['cover_size'])
-        oversize_size_mask = size_bytes > (self.BLUESOUND_MAX_SIZE_KB * 1024)
+        oversize_size_mask = size_bytes > (max_kb * 1024)  # T10 Lot I2
         combined_mask = has_cover_mask & oversize_size_mask
         if not combined_mask.any():
             return pd.DataFrame()
@@ -573,7 +575,7 @@ class ExcelExporter:
                 s_bytes = int(pd.to_numeric(row.get('cover_size'), errors='coerce') or 0)
             except (TypeError, ValueError):
                 s_bytes = 0
-            return '%.0f Ko > %d Ko' % (s_bytes / 1024.0, self.BLUESOUND_MAX_SIZE_KB)
+            return '%.0f Ko > %d Ko' % (s_bytes / 1024.0, max_kb)  # T10 Lot I2
         df_over['raison'] = df_over.apply(_compute_reason, axis=1)
         df_over['cover_size_kb'] = (_to_int_series(df_over['cover_size']) / 1024.0).round(1)
         preferred_cols = [
@@ -589,7 +591,7 @@ class ExcelExporter:
         logger.info(
             "[EXPORT] Pochettes hors-normes Bluesound : "
             "%d fichiers (seuil : poids > %d Ko)"
-            % (len(df_over), self.BLUESOUND_MAX_SIZE_KB)
+            % (len(df_over), max_kb)  # T10 Lot I2
         )
         return df_over
 

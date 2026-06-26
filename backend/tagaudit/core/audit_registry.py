@@ -117,6 +117,11 @@ _SEED_KPI = {"kpi_dashboard", "kpi_years", "kpi_genres", "kpi_albumartists", "ge
 _SEED_SKIP = {"music_tags"}
 # T10 Lot G1 : audits INFO repeches dans la vue "Par dossier" (ex-PARDOSSIER_KEEP)
 _SEED_PARDOSSIER = {"bitrate_mixed_album", "id3_version_inconsistency", "albumartist_typo", "folder_artist_mismatch"}
+# T10 Lot I1 : parametres metier editables (seuils). (param_key, value, audit_key, label, unit)
+_SEED_PARAMS = [
+    ("bluesound_max_kb", 700.0, "covers_bluesound_oversized",
+     "Seuil poids pochette Bluesound", "Ko"),
+]
 _SEED_INFO = {
     "cover_size", "quality_analysis", "albumartist_vs_artist", "duplicates_artist_title",
     "bitrate_mixed_album", "id3_version_inconsistency", "albumartist_typo",
@@ -144,6 +149,12 @@ def _migrate(conn):
     """T10 Lot G1 : migration douce - ajoute par_dossier si absente, peuple les 4 INFO repeches."""
     # T10 Lot H1 : table des preferences UI (cle/valeur JSON, ex. largeurs de colonnes)
     conn.execute("CREATE TABLE IF NOT EXISTS ui_prefs (pref_key TEXT PRIMARY KEY, value TEXT, updated_at TEXT)")
+    # T10 Lot I1 : table des parametres metier (seuils editables)
+    conn.execute("CREATE TABLE IF NOT EXISTS audit_params (param_key TEXT PRIMARY KEY, value REAL, audit_key TEXT, label TEXT, unit TEXT, updated_at TEXT)")
+    for _pk, _val, _ak, _lbl, _un in _SEED_PARAMS:
+        conn.execute("INSERT OR IGNORE INTO audit_params (param_key, value, audit_key, label, unit, updated_at) VALUES (?,?,?,?,?,?)",
+                     (_pk, _val, _ak, _lbl, _un, _now()))
+    conn.commit()
     cols = [r[1] for r in conn.execute("PRAGMA table_info(audit_registry)").fetchall()]
     if 'par_dossier' not in cols:
         conn.execute("ALTER TABLE audit_registry ADD COLUMN par_dossier INTEGER DEFAULT 0")
@@ -260,5 +271,37 @@ def set_ui_pref(key, value, db_path=None):
                      (key, json.dumps(value, ensure_ascii=False), _now()))
         conn.commit()
         return True
+    finally:
+        conn.close()
+
+# --- T10 Lot I1 : parametres metier d'audits (seuils editables) ---
+def get_audit_param(key, default=None, db_path=None):
+    """Retourne la valeur (float) d'un parametre, ou default si absent."""
+    conn = connect(db_path)
+    try:
+        conn.execute("CREATE TABLE IF NOT EXISTS audit_params (param_key TEXT PRIMARY KEY, value REAL, audit_key TEXT, label TEXT, unit TEXT, updated_at TEXT)")
+        row = conn.execute("SELECT value FROM audit_params WHERE param_key = ?", (key,)).fetchone()
+        return row["value"] if row else default
+    finally:
+        conn.close()
+
+def get_all_audit_params(db_path=None):
+    """Liste tous les parametres (dicts) pour l'UI."""
+    conn = connect(db_path)
+    try:
+        conn.execute("CREATE TABLE IF NOT EXISTS audit_params (param_key TEXT PRIMARY KEY, value REAL, audit_key TEXT, label TEXT, unit TEXT, updated_at TEXT)")
+        rows = conn.execute("SELECT param_key, value, audit_key, label, unit, updated_at FROM audit_params ORDER BY audit_key, param_key").fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+def set_audit_param(key, value, db_path=None):
+    """Met a jour la valeur d'un parametre existant. False si param_key inconnu."""
+    conn = connect(db_path)
+    try:
+        cur = conn.execute("UPDATE audit_params SET value = ?, updated_at = ? WHERE param_key = ?",
+                           (float(value), _now(), key))
+        conn.commit()
+        return cur.rowcount > 0
     finally:
         conn.close()
