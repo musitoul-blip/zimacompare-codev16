@@ -269,6 +269,7 @@ class AuditRegistryUpdate(BaseModel):
     ordre: Optional[int] = None
     decision: Optional[str] = None
     note: Optional[str] = None
+    par_dossier: Optional[int] = None  # T10 Lot G3
 
 @app.get("/api/audit-registry")
 def api_audit_registry():

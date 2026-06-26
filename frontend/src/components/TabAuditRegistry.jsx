@@ -29,6 +29,7 @@ function Row({ row, onSaved }) {
         classement_cible: draft.classement_cible, dans_health: draft.dans_health,
         poids_cible: draft.poids_cible, actif: draft.actif,
         decision: draft.decision, note: draft.note,
+        par_dossier: draft.par_dossier,  // T10 Lot G3
       }
       await api.auditRegistryUpdate(draft.audit_key, fields)
       setMsg('✓'); onSaved(draft)
@@ -66,6 +67,14 @@ function Row({ row, onSaved }) {
       <td style={{ textAlign: 'center' }}>
         <input type="checkbox" checked={!!draft.actif}
                onChange={e => set('actif', e.target.checked ? 1 : 0)} />
+      </td>
+      <td style={{ textAlign: 'center' }} title={draft.classement_cible === 'INFO'
+          ? 'Afficher cet audit INFO dans la vue Par dossier'
+          : 'Pertinent uniquement pour les audits INFO (les problemes y sont deja, KPI/SKIP jamais)'}>
+        {/* T10 Lot G3 : par_dossier editable seulement pour les INFO */}
+        <input type="checkbox" checked={!!draft.par_dossier}
+               disabled={draft.classement_cible !== 'INFO'}
+               onChange={e => set('par_dossier', e.target.checked ? 1 : 0)} />
       </td>
       <td>
         <input value={draft.note || ''} onChange={e => set('note', e.target.value)}
@@ -135,7 +144,7 @@ export default function TabAuditRegistry() {
             <table style={{ minWidth: 880, fontSize: 12 }}>
               <thead><tr>
                 <th>Clé</th><th>Libellé</th><th>Onglet</th><th>Classement</th>
-                <th>Health</th><th>Poids</th><th>Actif</th><th>Note</th><th></th>
+                <th>Health</th><th>Poids</th><th>Actif</th><th>Dossier</th><th>Note</th><th></th>
               </tr></thead>
               <tbody>
                 {items.map(r => <Row key={r.audit_key} row={r} onSaved={onSaved} />)}
