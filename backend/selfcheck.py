@@ -59,6 +59,7 @@ def run_selfcheck():
     # 4 - SMART disques (F19-tuning : warn seulement a old >=5 ans ou SMART_KO ; 3-5 ans = info surveillance)
     try:
         import smartinfo
+        from config import SMART_WATCH_YEARS, SMART_OLD_YEARS  # DRY F19
         worst = "ok"
         details = []
         for d in smartinfo.get_all_smart():
@@ -71,13 +72,13 @@ def run_selfcheck():
             tag = "ok"
             if smart_ok is False:
                 tag = "fail"
-            elif yrs >= 5:
+            elif yrs >= SMART_OLD_YEARS:  # DRY F19
                 tag = "warn"
             if _ORDER[tag] > _ORDER[worst]:
                 worst = tag
             details.append("%s %.1fan%s%s%s" % (
                 name, yrs, "s" if yrs >= 2 else "",
-                " surveillance" if (smart_ok is not False and 3 <= yrs < 5) else "",
+                " surveillance" if (smart_ok is not False and SMART_WATCH_YEARS <= yrs < SMART_OLD_YEARS) else "",  # DRY F19
                 " SMART_KO" if smart_ok is False else ""))
         checks.append(_c("smart", "Disques SMART", worst,
                          ", ".join(details) or "aucun disque"))

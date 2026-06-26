@@ -388,6 +388,9 @@ _DISK_TTL_NETWORK_S  = 30
 # Timeout par appel — au-delà on retourne stale=True avec disk:null.
 _DISK_TIMEOUT_LOCAL_S    = 1.0
 _DISK_TIMEOUT_NETWORK_S  = 3.0
+# DRY F19 : source unique des seuils SMART (ans). Refs : main.py (export), selfcheck.py (verdict).
+SMART_WATCH_YEARS = 3   # >= : surveillance (info, status ok)
+SMART_OLD_YEARS   = 5   # >= : warn (disque ancien)
 
 
 def _disk_usage_raw(p: str) -> dict:

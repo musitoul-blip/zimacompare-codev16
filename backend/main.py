@@ -913,10 +913,12 @@ def api_export_context():
     except Exception:
         _audits = []
     try:
-        from config import _DISK_TIMEOUT_LOCAL_S, _DISK_TIMEOUT_NETWORK_S
+        from config import (_DISK_TIMEOUT_LOCAL_S, _DISK_TIMEOUT_NETWORK_S,
+                            SMART_WATCH_YEARS, SMART_OLD_YEARS)  # DRY F19
         thresholds = {"disk_timeout_local_s": _DISK_TIMEOUT_LOCAL_S,
                       "disk_timeout_network_s": _DISK_TIMEOUT_NETWORK_S,
-                      "smart_watch_years": 3, "smart_old_years": 5}
+                      "smart_watch_years": SMART_WATCH_YEARS,
+                      "smart_old_years": SMART_OLD_YEARS}
     except Exception:
         thresholds = {}
     return {
