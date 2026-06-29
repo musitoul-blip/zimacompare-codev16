@@ -19,14 +19,42 @@ TAG_SOURCE_DEFAULT = "/disks/HDD-Storage1/Media/GoogleMusic"
 _scanner = None
 _lock = threading.Lock()
 _meta = {"started_at": 0.0, "ended_at": 0.0}
-_dir_cache = {"source": None, "built_at": 0.0, "dirs": []}
+_dir_cache = {"source": None, "built_at": 0.0, "dirs": [], "sig": None}
+
+
+def _source_signature(source):
+    """Snapshot leger de la source pour invalider le cache des dossiers.
+    (mtime racine, nb d'entrees niveau 1, somme des mtime des sous-dossiers
+    niveau 1). La somme des mtime attrape un ajout/retrait DANS un album
+    existant (son mtime de dossier change), pas seulement a la racine.
+    Borne : un stat par sous-dossier (rapide). Retourne None si illisible."""
+    try:
+        root_mtime = os.stat(source).st_mtime
+    except OSError:
+        return None
+    count = 0
+    sum_mtime = 0.0
+    try:
+        with os.scandir(source) as it:
+            for e in it:
+                count += 1
+                if e.is_dir(follow_symlinks=False):
+                    try:
+                        sum_mtime += e.stat(follow_symlinks=False).st_mtime
+                    except OSError:
+                        pass
+    except OSError:
+        return None
+    return (round(root_mtime, 3), count, round(sum_mtime, 3))
 
 
 def list_source_dirs(source=None, refresh=False):
     """Index des sous-dossiers immediats de la source + comptage par format.
     Mis en cache (par source). Alimente le filtre interactif cote UI."""
     source = source or TAG_SOURCE_DEFAULT
-    if not refresh and _dir_cache["source"] == source and _dir_cache["dirs"]:
+    cur_sig = _source_signature(source)
+    if (not refresh and _dir_cache["source"] == source and _dir_cache["dirs"]
+            and _dir_cache.get("sig") == cur_sig and cur_sig is not None):
         return _dir_cache
     dirs = []
     try:
@@ -49,7 +77,7 @@ def list_source_dirs(source=None, refresh=False):
         if tot:
             dirs.append({"name": e.name, "mp3": c["mp3"], "flac": c["flac"],
                          "m4a": c["m4a"], "total": tot})
-    _dir_cache.update(source=source, built_at=time.time(), dirs=dirs)
+    _dir_cache.update(source=source, built_at=time.time(), dirs=dirs, sig=cur_sig)
     return _dir_cache
 
 
