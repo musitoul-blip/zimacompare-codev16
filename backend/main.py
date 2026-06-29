@@ -1730,3 +1730,114 @@ def _diag_collect_health():
 @app.get("/api/diag/health")
 def api_diag_health():
     return _diag_collect_health()
+
+
+# ===== A3 : jeu temoin de tests fonctionnels (selftest) =====
+def _t(name, status, detail=""):
+    return {"name": name, "status": status, "detail": detail}
+
+def run_selftest():
+    tests = []
+
+    # 1 - signature : 2 messages identiques -> meme signature
+    try:
+        s1 = _diag_signature("TypeError x", "App.jsx", 10)
+        s2 = _diag_signature("TypeError x", "App.jsx", 10)
+        tests.append(_t("signature_identique", "ok" if s1 == s2 else "fail", "%s vs %s" % (s1, s2)))
+    except Exception as e:
+        tests.append(_t("signature_identique", "fail", str(e)))
+
+    # 2 - normalisation nombres : 'item 501' et 'item 999' -> meme signature
+    try:
+        a = _diag_signature("Cannot read item 501", "App.jsx", 88)
+        b = _diag_signature("Cannot read item 999", "App.jsx", 88)
+        tests.append(_t("normalisation_nombres", "ok" if a == b else "fail", "%s vs %s" % (a, b)))
+    except Exception as e:
+        tests.append(_t("normalisation_nombres", "fail", str(e)))
+
+    # 3 - signatures distinctes : messages differents -> sigs differentes
+    try:
+        a = _diag_signature("Error A", "f.js", 1)
+        b = _diag_signature("Error B", "f.js", 1)
+        tests.append(_t("signatures_distinctes", "ok" if a != b else "fail", "%s vs %s" % (a, b)))
+    except Exception as e:
+        tests.append(_t("signatures_distinctes", "fail", str(e)))
+
+    # 4 - normalisation chemins : deux chemins differents -> meme signature
+    try:
+        a = _diag_signature("load failed at /aa/bb/cc.js", "p", 1)
+        b = _diag_signature("load failed at /xx/yy/zz.js", "p", 1)
+        tests.append(_t("normalisation_chemins", "ok" if a == b else "fail", "%s vs %s" % (a, b)))
+    except Exception as e:
+        tests.append(_t("normalisation_chemins", "fail", str(e)))
+
+    # 5 - agregation : 3 events (2 identiques) -> 2 sigs, une a count=2
+    try:
+        evs = [
+            {"message": "Boom", "source": "a.js", "line": 5, "level": "error", "ts": "2026-01-01T00:00:01"},
+            {"message": "Boom", "source": "a.js", "line": 5, "level": "error", "ts": "2026-01-01T00:00:02"},
+            {"message": "Other", "source": "b.js", "line": 9, "level": "error", "ts": "2026-01-01T00:00:03"},
+        ]
+        agg = _diag_aggregate(evs, include_noise=True)
+        top = agg[0] if agg else {}
+        ok = len(agg) == 2 and top.get("count") == 2
+        tests.append(_t("agregation_count", "ok" if ok else "fail", "sigs=%d top_count=%s" % (len(agg), top.get("count"))))
+    except Exception as e:
+        tests.append(_t("agregation_count", "fail", str(e)))
+
+    # 6 - tri par frequence : count decroissant
+    try:
+        evs = [
+            {"message": "Rare", "source": "r.js", "line": 1, "level": "error", "ts": "2026-01-01T00:00:01"},
+            {"message": "Freq", "source": "f.js", "line": 2, "level": "error", "ts": "2026-01-01T00:00:02"},
+            {"message": "Freq", "source": "f.js", "line": 2, "level": "error", "ts": "2026-01-01T00:00:03"},
+        ]
+        agg = _diag_aggregate(evs, include_noise=True)
+        ok = len(agg) >= 2 and agg[0].get("count") >= agg[1].get("count")
+        tests.append(_t("tri_par_frequence", "ok" if ok else "fail", "counts=%s" % [r.get("count") for r in agg]))
+    except Exception as e:
+        tests.append(_t("tri_par_frequence", "fail", str(e)))
+
+    # 7 - filtrage bruit : une signature dans _DIAG_NOISE est exclue
+    try:
+        ev = {"message": "NoiseMsg", "source": "n.js", "line": 1, "level": "error", "ts": "2026-01-01T00:00:01"}
+        sig = _diag_signature(ev["message"], ev["source"], ev["line"])
+        added = sig not in _DIAG_NOISE
+        if added:
+            _DIAG_NOISE.add(sig)
+        try:
+            agg_no = _diag_aggregate([ev], include_noise=False)
+            agg_yes = _diag_aggregate([ev], include_noise=True)
+            ok = (len(agg_no) == 0) and (len(agg_yes) == 1)
+            tests.append(_t("filtrage_bruit", "ok" if ok else "fail", "no=%d yes=%d" % (len(agg_no), len(agg_yes))))
+        finally:
+            if added:
+                _DIAG_NOISE.discard(sig)
+    except Exception as e:
+        tests.append(_t("filtrage_bruit", "fail", str(e)))
+
+    # 8 - sante : forme de _diag_collect_health
+    try:
+        h = _diag_collect_health()
+        ok = isinstance(h, dict) and "metrics" in h and "statuses" in h and "verdict" in h
+        tests.append(_t("sante_forme", "ok" if ok else "fail", "verdict=%s" % h.get("verdict")))
+    except Exception as e:
+        tests.append(_t("sante_forme", "fail", str(e)))
+
+    # 9 - param audit : bluesound_max_kb est un nombre > 0
+    try:
+        from tagaudit.core.audit_registry import get_audit_param
+        v = get_audit_param("bluesound_max_kb", None)
+        ok = isinstance(v, (int, float)) and v > 0
+        tests.append(_t("param_bluesound", "ok" if ok else "fail", "valeur=%s" % v))
+    except Exception as e:
+        tests.append(_t("param_bluesound", "fail", str(e)))
+
+    passed = sum(1 for t in tests if t["status"] == "ok")
+    failed = sum(1 for t in tests if t["status"] == "fail")
+    verdict = "ok" if failed == 0 else "fail"
+    return {"tests": tests, "passed": passed, "failed": failed, "verdict": verdict}
+
+@app.get("/api/selftest")
+def api_selftest():
+    return run_selftest()
