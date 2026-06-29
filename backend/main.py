@@ -1463,3 +1463,155 @@ def api_diag_events(since: str = "", include_noise: int = 0):
         "warnings": n_warn,
         "signatures": agg,
     }
+
+
+# ===== A1.4 + A1.5 : correlation front<->backend + rapport genere (diagnostic v15) =====
+import re as _diag_re2
+_DIAG_HMS = _diag_re2.compile(r"^(\d{2}):(\d{2}):(\d{2})\b")
+
+def _diag_parse_hms(line: str):
+    """Heure HH:MM:SS en tete de ligne -> secondes depuis minuit, sinon None."""
+    m = _DIAG_HMS.match(line or "")
+    if not m:
+        return None
+    h, mi, s = int(m.group(1)), int(m.group(2)), int(m.group(3))
+    return h * 3600 + mi * 60 + s
+
+def _diag_iso_to_secday(ts: str):
+    """ISO '...THH:MM:SS...' -> secondes depuis minuit, sinon None."""
+    try:
+        t = ts.split("T", 1)[1] if "T" in ts else ts
+        hh, mm, ss = t[0:2], t[3:5], t[6:8]
+        return int(hh) * 3600 + int(mm) * 60 + int(ss)
+    except Exception:
+        return None
+
+def _diag_backend_context(iso_ts: str, window_s: int = 4, max_lines: int = 12):
+    """Lignes backend (non [FRONT]) du log_buffer autour de l'heure de iso_ts (+/- window_s)."""
+    center = _diag_iso_to_secday(iso_ts)
+    if center is None:
+        return []
+    with _log_lock:
+        snapshot = list(log_buffer)
+    out = []
+    for ln in snapshot:
+        if "[FRONT]" in ln:
+            continue
+        sec = _diag_parse_hms(ln)
+        if sec is None:
+            continue
+        d = abs(sec - center)
+        if d > 43200:           # gestion grossiere du passage minuit
+            d = 86400 - d
+        if d <= window_s:
+            out.append(ln)
+    return out[-max_lines:]
+
+def _diag_build_report(since: str = "", fmt: str = "md"):
+    """Construit le rapport de diagnostic (md|json) : erreurs distinctes triees,
+    contexte backend correle, warnings, bruit filtre compte, selfcheck."""
+    evs = _diag_load_events(since)
+    agg = _diag_aggregate(evs, include_noise=False)
+    agg_all = _diag_aggregate(evs, include_noise=True)
+    noise_count = sum(r["count"] for r in agg_all if r["signature"] in _DIAG_NOISE)
+    for r in agg:
+        r["backend_context"] = _diag_backend_context(r.get("last_seen", ""))
+    errors = [r for r in agg if str(r.get("level")).lower() == "error"]
+    warnings = [r for r in agg if str(r.get("level")).lower() in ("warning", "warn")]
+    try:
+        from selfcheck import run_selfcheck
+        sc = run_selfcheck()
+        sc_summary = {"verdict": sc.get("verdict"),
+                      "checks": [{"id": c.get("id"), "status": c.get("status")} for c in sc.get("checks", [])]}
+    except Exception as _e:
+        sc_summary = {"verdict": "?", "error": str(_e)}
+
+    try:
+        app_ver = APP_VERSION
+    except Exception:
+        app_ver = "?"
+    now_iso = datetime.now().isoformat(timespec="seconds")
+    period = "%s -> %s" % (since or "(debut)", now_iso)
+
+    if fmt == "json":
+        return {
+            "app_version": app_ver,
+            "generated_at": now_iso,
+            "period": period,
+            "total_events": len(evs),
+            "distinct_signatures": len(agg),
+            "errors_count": len(errors),
+            "warnings_count": len(warnings),
+            "noise_filtered_count": noise_count,
+            "errors": errors,
+            "warnings": warnings,
+            "selfcheck": sc_summary,
+        }
+
+    L = []
+    L.append("# Rapport de diagnostic ZimaCompare&Tag")
+    L.append("")
+    L.append("- Version : v%s" % app_ver)
+    L.append("- Genere le : %s" % now_iso)
+    L.append("- Periode : %s" % period)
+    L.append("- Evenements front : %d (%d signatures distinctes)" % (len(evs), len(agg)))
+    L.append("- Erreurs : %d | Warnings : %d | Bruit filtre : %d" % (len(errors), len(warnings), noise_count))
+    L.append("- Selfcheck : %s" % sc_summary.get("verdict"))
+    L.append("")
+    L.append("## Erreurs distinctes (par frequence)")
+    if not errors:
+        L.append("_aucune_")
+    for r in errors:
+        L.append("")
+        L.append("### [%dx] %s" % (r["count"], r.get("message", "")))
+        L.append("- signature : `%s`" % r.get("signature"))
+        L.append("- source : %s:%s" % (r.get("source", ""), r.get("line")))
+        L.append("- premiere/derniere : %s -> %s" % (r.get("first_seen", ""), r.get("last_seen", "")))
+        L.append("- onglets : %s" % (", ".join(r.get("tabs", [])) or "-"))
+        st = (r.get("sample_stack") or "").strip()
+        if st:
+            L.append("- stack (extrait) :")
+            L.append("```")
+            for sl in st.splitlines()[:8]:
+                L.append(sl)
+            L.append("```")
+        bc = r.get("backend_context") or []
+        if bc:
+            L.append("- contexte backend correle (+/- 4s) :")
+            L.append("```")
+            for bl in bc:
+                L.append(bl)
+            L.append("```")
+    L.append("")
+    L.append("## Warnings distincts")
+    if not warnings:
+        L.append("_aucun_")
+    for r in warnings:
+        L.append("- [%dx] %s (%s:%s)" % (r["count"], r.get("message", ""), r.get("source", ""), r.get("line")))
+    L.append("")
+    L.append("## Bruit filtre")
+    L.append("%d evenement(s) correspondant a des signatures connues, non detaillees." % noise_count)
+    L.append("")
+    L.append("## Etat systeme (selfcheck)")
+    L.append("- verdict : %s" % sc_summary.get("verdict"))
+    for c in sc_summary.get("checks", []):
+        L.append("- %s : %s" % (c.get("id"), c.get("status")))
+    return "\n".join(L) + "\n"
+
+@app.get("/api/diag/report")
+def api_diag_report(since: str = "", format: str = "md"):
+    from fastapi.responses import Response, JSONResponse
+    fmt = (format or "md").lower()
+    stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    if fmt == "json":
+        data = _diag_build_report(since, "json")
+        return JSONResponse(
+            content=data,
+            headers={"Content-Disposition": "attachment; filename=diag_report_%s.json" % stamp},
+        )
+    md = _diag_build_report(since, "md")
+    return Response(
+        content=md,
+        media_type="text/markdown; charset=utf-8",
+        headers={"Content-Disposition": "attachment; filename=diag_report_%s.md" % stamp},
+    )
