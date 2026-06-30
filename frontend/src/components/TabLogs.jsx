@@ -19,6 +19,8 @@ export default function TabLogs() {
   const [minLvl, setMinLvl] = useState('ALL')
   const [onlyFront, setOnlyFront] = useState(false)
   const [health, setHealth] = useState(null)
+  const [logLevel, setLogLevel] = useState('')
+  const [logLevels, setLogLevels] = useState(['DEBUG','INFO','WARNING','ERROR','CRITICAL'])
   const boxRef = useRef(null)
   const pausedRef = useRef(false)
   const bufRef = useRef([])
@@ -44,6 +46,18 @@ export default function TabLogs() {
     fetch('/api/diag/health').then(r => r.json()).then(setHealth).catch(() => {})
   }, [])
   useEffect(() => { loadHealth() }, [loadHealth])
+  useEffect(() => {
+    fetch('/api/diag/log-level').then(r => r.json()).then(d => {
+      if (d && d.level) setLogLevel(d.level)
+      if (d && Array.isArray(d.levels)) setLogLevels(d.levels)
+    }).catch(() => {})
+  }, [])
+  const changeLogLevel = (lvl) => {
+    setLogLevel(lvl)
+    fetch('/api/diag/log-level?level=' + encodeURIComponent(lvl), { method:'POST' })
+      .then(r => r.json()).then(d => { if (d && d.level) setLogLevel(d.level) })
+      .catch(() => {})
+  }
 
   const order = { DEBUG:0, INFO:1, WARNING:2, WARN:2, ERROR:3 }
   const minRank = minLvl === 'ALL' ? -1 : (order[minLvl] ?? -1)
@@ -88,6 +102,12 @@ export default function TabLogs() {
           <button onClick={() => dl('md')}>⬇ Rapport diagnostic (.md)</button>
           <button onClick={() => dl('json')}>⬇ Rapport (.json)</button>
           <button onClick={loadHealth}>↻ Rafraichir sante</button>
+          <label style={{ display:'flex', alignItems:'center', gap:6, marginLeft:'auto' }}>
+            Niveau console :
+            <select value={logLevel} onChange={e => changeLogLevel(e.target.value)}>
+              {logLevels.map(lv => <option key={lv} value={lv}>{lv}</option>)}
+            </select>
+          </label>
           {health && (
             <span style={{ fontSize:13 }}>
               Sante : <b style={{ color: HS[health.verdict] || HS.unknown }}>{health.verdict}</b>
