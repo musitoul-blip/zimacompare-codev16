@@ -411,7 +411,6 @@ def build_installer_zip(include_paths_history: bool = True,
             for d in FRONTEND_DIRS_NESTED:
                 src_dir = front_dir / d
                 if src_dir.exists():
-                    count_before = n_frontend
                     _add_dir(zf, src_dir, f"{root_dir}/frontend/{d}", excludes=FRONTEND_EXCLUDES)
                     # On compte ce qu'on vient d'ajouter (approximation)
                     n_frontend += sum(1 for _ in src_dir.rglob("*")

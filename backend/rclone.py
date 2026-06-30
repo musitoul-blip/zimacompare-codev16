@@ -254,7 +254,7 @@ def rclone_health() -> dict:
                 # conteneur). On compte les entrées visibles.
                 try:
                     n = len(os.listdir(PCLOUD_MOUNT))
-                except OSError as e:
+                except OSError:
                     n = None
                 if n == 0:
                     # Monté, mais vide : très suspect si le remote, lui, a du
