@@ -1559,31 +1559,6 @@ officiel, sous réserve d'évolution de l'outil.
         """
         from audit import report_model
         return report_model.compute_health_score(self.audit_results, self.df_main, self.SHEET_GROUPS, self.HEALTH_WEIGHTS)
-        total = max(len(self.df_main) if self.df_main is not None else 0, 1)
-        score = 100.0
-        penalties: List[Tuple[str, float]] = []
-
-        # Map data_key -> sheet label (pour affichage)
-        key_to_label: Dict[str, str] = {}
-        for sheets in self.SHEET_GROUPS.values():
-            for sheet_name, data_key in sheets:
-                key_to_label[data_key] = sheet_name
-
-        for data_key, weight in self.HEALTH_WEIGHTS.items():
-            count = self._get_row_count(data_key)
-            if count <= 0:
-                continue
-            # Normalisation : ratio * weight, borné à 15 pts par catégorie
-            raw = (count / total) * weight * 100
-            penalty = min(raw, 15.0)
-            score -= penalty
-            label = key_to_label.get(data_key, data_key)
-            penalties.append((label, penalty))
-
-        # Plancher à 0
-        final_score = max(0, int(round(score)))
-        penalties.sort(key=lambda x: x[1], reverse=True)
-        return final_score, penalties
 
     def _compute_top_issues(self, limit: int = 5) -> List[Tuple[str, int, str]]:
         """Retourne [(sheet_name, count, group_name), ...] des N plus gros problèmes.
@@ -1592,17 +1567,6 @@ officiel, sous réserve d'évolution de l'outil.
         """
         from audit import report_model
         return report_model.compute_top_issues(self.audit_results, self.SHEET_GROUPS, limit)
-        excluded_groups = {'cockpit', 'donnees', 'kpi'}
-        issues = []
-        for group_name, sheets in self.SHEET_GROUPS.items():
-            if group_name in excluded_groups:
-                continue
-            for sheet_name, data_key in sheets:
-                count = self._get_row_count(data_key)
-                if count > 0:
-                    issues.append((sheet_name, count, group_name))
-        issues.sort(key=lambda x: x[1], reverse=True)
-        return issues[:limit]
 
     # ==================================================================
     # Graphiques du Cockpit (alimentés depuis _ChartData caché)
