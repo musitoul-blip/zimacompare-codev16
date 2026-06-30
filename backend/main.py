@@ -26,6 +26,7 @@ from config import (
     APP_DATA_ROOT, REPORTS_DIR, VALID_PREFIXES, AppConfig, AppState,
     LOG_FILE, ensure_dirs, get_state, load_persisted_state,
     log_buffer, _log_lock, setup_logging, update_state,
+    get_runtime_log_level, set_runtime_log_level, LOG_LEVELS,
     validate_path, path_exists, load_paths_history, disk_info,
     load_profiles, save_profile, delete_profile,
     # v3.12 — .zimaignore
@@ -434,6 +435,23 @@ def api_ignored_files(limit: int = 500, offset: int = 0):
         "generated_at": payload.get("generated_at"),
         "items":        items[offset: offset + limit],
     }
+
+@app.get("/api/diag/log-level")
+def api_get_log_level():
+    """Niveau de log console courant + niveaux disponibles."""
+    return {"level": get_runtime_log_level(), "levels": list(LOG_LEVELS)}
+
+
+@app.post("/api/diag/log-level")
+def api_set_log_level(level: str = Query(...)):
+    """Change le niveau de log console a chaud (persiste). ?level=DEBUG."""
+    try:
+        applied = set_runtime_log_level(level)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    logger.info(f"[DIAG] Niveau de log console -> {applied}")
+    return {"ok": True, "level": applied}
+
 
 @app.get("/api/logs/recent")
 def api_logs_recent(n: int = 200):

@@ -584,6 +584,61 @@ class _MemoryHandler(logging.Handler):
                 log_buffer.pop(0)
 
 
+LOG_LEVELS = {
+    "DEBUG": logging.DEBUG, "INFO": logging.INFO, "WARNING": logging.WARNING,
+    "ERROR": logging.ERROR, "CRITICAL": logging.CRITICAL,
+}
+LOG_LEVEL_FILE = APP_DATA_ROOT / "log_level"
+
+
+def _read_persisted_log_level() -> str:
+    """Niveau console persiste (str) ou 'INFO' par defaut."""
+    try:
+        v = LOG_LEVEL_FILE.read_text(encoding="utf-8").strip().upper()
+        if v in LOG_LEVELS:
+            return v
+    except Exception:
+        pass
+    return "INFO"
+
+
+def _console_handler():
+    """Retrouve le StreamHandler console du logger 'zimacompare' (ou None)."""
+    lg = logging.getLogger("zimacompare")
+    for h in lg.handlers:
+        if isinstance(h, logging.StreamHandler) and not isinstance(h, RotatingFileHandler):
+            # _MemoryHandler n'est pas un StreamHandler -> seul le console matche.
+            return h
+    return None
+
+
+def get_runtime_log_level() -> str:
+    """Niveau courant du handler console (str)."""
+    h = _console_handler()
+    if h is not None:
+        for name, lvl in LOG_LEVELS.items():
+            if lvl == h.level:
+                return name
+    return _read_persisted_log_level()
+
+
+def set_runtime_log_level(name: str) -> str:
+    """Ajuste le niveau du handler console A CHAUD + persiste. Retourne le
+    niveau applique. Le fichier et le buffer memoire restent a DEBUG (trace
+    complete conservee) ; seul l'affichage console est filtre."""
+    name = (name or "").strip().upper()
+    if name not in LOG_LEVELS:
+        raise ValueError(f"Niveau inconnu : {name!r} (valides : {list(LOG_LEVELS)})")
+    h = _console_handler()
+    if h is not None:
+        h.setLevel(LOG_LEVELS[name])
+    try:
+        LOG_LEVEL_FILE.write_text(name, encoding="utf-8")
+    except Exception:
+        pass
+    return name
+
+
 def setup_logging() -> logging.Logger:
     ensure_dirs()
     logger = logging.getLogger("zimacompare")
@@ -599,6 +654,7 @@ def setup_logging() -> logging.Logger:
     mh.setLevel(logging.DEBUG); mh.setFormatter(fmt); logger.addHandler(mh)
 
     sh = logging.StreamHandler()
-    sh.setLevel(logging.INFO); sh.setFormatter(fmt); logger.addHandler(sh)
+    sh.setLevel(LOG_LEVELS.get(_read_persisted_log_level(), logging.INFO))
+    sh.setFormatter(fmt); logger.addHandler(sh)
 
     return logger
