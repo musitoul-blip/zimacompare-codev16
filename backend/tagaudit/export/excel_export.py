@@ -388,7 +388,7 @@ class ExcelExporter:
             except Exception as e:
                 logger.error(f"[EXPORT] Erreur génération fichiers mp3tag: {e}")
 
-        except Exception as e:
+        except Exception:
             if tmp_path.exists():
                 try:
                     tmp_path.unlink()

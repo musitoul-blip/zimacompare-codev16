@@ -61,7 +61,6 @@ def _is_phantom_device(raw: dict) -> bool:
         return True
     # Si aucun des champs basiques n'est présent → fantôme
     has_model    = bool(raw.get("model_name") or raw.get("model_family"))
-    has_serial   = bool(raw.get("serial_number"))
     has_status   = raw.get("smart_status") is not None
     has_capacity = (raw.get("user_capacity") or {}).get("bytes") is not None
     # Pas de modèle ET pas de status ET pas de capacité → c'est un fantôme
