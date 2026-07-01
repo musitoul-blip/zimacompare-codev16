@@ -30,8 +30,7 @@ from urllib.parse import quote
 # Logger backend (fallback print si import indisponible hors app)
 # ----------------------------------------------------------------------------
 try:
-    from tagaudit.core.logger import get_logger
-    _LOG = get_logger("bluos")
+    from tagaudit.core.logger import logger as _LOG
 
     def _default_log(msg):
         _LOG.info(msg)
