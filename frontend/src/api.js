@@ -46,6 +46,7 @@ export const api = {
   bluosAbort:     ()            => req('POST', '/bluos/abort'),
   bluosStatus:    ()            => req('GET',  '/bluos/status'),
   bluosResults:   ()            => req('GET',  '/bluos/results'),
+  bluosCheckPath: (path)        => req('GET',  `/bluos/check-path?path=${encodeURIComponent(path)}`),
   reports:       ()       => req('GET',  '/reports'),
   scanResults:   (p)      => req('GET',  `/scan-results?${new URLSearchParams(p)}`),
   diffReport:    ()       => req('GET',  '/diff-report'),
