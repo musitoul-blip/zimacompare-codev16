@@ -82,6 +82,8 @@ export default function TabBluos({ status }) {
   const [results, setResults] = useState(null)
   const [msg, setMsg] = useState('')
   const [sourcePath, setSourcePath] = useState('')
+  const [pathCheck, setPathCheck] = useState(null)  // {in_csv, matched_dirs} ou null
+  const [pathChecking, setPathChecking] = useState(false)
   const pollRef = useRef(null)
 
   // param IP courant (extrait des params pour le champ dedie)
@@ -89,10 +91,28 @@ export default function TabBluos({ status }) {
 
   async function load() {
     setLoading(true); setErr('')
-    try { setParams(await api.bluosParams()) }
+    try {
+      const ps = await api.bluosParams()
+      setParams(ps)
+      // Pre-remplir le dossier local depuis le parametre bluos_source_path (Lot 8)
+      const sp = ps.find(p => p.param_key === 'bluos_source_path')
+      if (sp && sp.value && !sourcePath) setSourcePath(sp.value)
+    }
     catch (e) { setErr(e.message) } finally { setLoading(false) }
   }
   useEffect(() => { load() }, [])
+
+  // Verification live du dossier (present dans master_scan.csv ?) avec debounce (Lot 8)
+  useEffect(() => {
+    if (!sourcePath || !sourcePath.trim()) { setPathCheck(null); return }
+    setPathChecking(true)
+    const h = setTimeout(async () => {
+      try { setPathCheck(await api.bluosCheckPath(sourcePath.trim())) }
+      catch (e) { setPathCheck(null) }
+      finally { setPathChecking(false) }
+    }, 500)
+    return () => clearTimeout(h)
+  }, [sourcePath])
 
   // cleanup polling au demontage
   useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current) }, [])
@@ -170,6 +190,11 @@ export default function TabBluos({ status }) {
           <input value={sourcePath} onChange={e => setSourcePath(e.target.value)}
                  placeholder="/disks/HDD-Storage1/Media/GoogleMusic"
                  style={{ width: 320, fontSize: 13 }} />
+          {pathChecking && <span style={{ ...muted, fontSize: 12 }}>…</span>}
+          {!pathChecking && pathCheck && pathCheck.in_csv &&
+            <span style={{ color: 'var(--success)', fontSize: 13 }} title={`${pathCheck.matched_dirs} dossier(s) dans le scan`}>✓ {pathCheck.matched_dirs} dossiers</span>}
+          {!pathChecking && pathCheck && !pathCheck.in_csv &&
+            <span style={{ color: 'var(--danger)', fontSize: 13 }} title="Aucun dossier trouve dans master_scan.csv">✗ absent du scan</span>}
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <button className="btn-primary" onClick={startScan} disabled={scanning}>
