@@ -1,6 +1,32 @@
 import { useState, useEffect, useRef } from 'react'
 import { api } from '../api.js'
 
+// --- Actions chemin (identiques au rapport d'audit ZimaTag) ---
+function ztCopy(text, btn) {
+  let ok = false
+  try {
+    if (navigator.clipboard && window.isSecureContext) { navigator.clipboard.writeText(text); ok = true }
+  } catch (e) { /* fallback */ }
+  if (!ok) {
+    try {
+      const ta = document.createElement('textarea')
+      ta.value = text; ta.setAttribute('readonly', '')
+      ta.style.position = 'fixed'; ta.style.top = '-1000px'; ta.style.opacity = '0'
+      document.body.appendChild(ta); ta.focus(); ta.select()
+      ok = document.execCommand('copy'); document.body.removeChild(ta)
+    } catch (e) { /* ignore */ }
+  }
+  if (btn) {
+    const t = btn.textContent
+    btn.textContent = ok ? 'copie !' : 'Ctrl+C'
+    setTimeout(() => { btn.textContent = t }, 1500)
+  }
+}
+// file:/// (percent-encode, comme _file_uri) ; ezcd: / zimadir: (comme _ezcd_uri/_dir_uri)
+const fileUri  = (win) => 'file:///' + encodeURI(win.replace(/\\/g, '/'))
+const ezcdUri  = (win) => 'ezcd:' + encodeURIComponent(win)
+const zimadirUri = (win) => 'zimadir:' + encodeURIComponent(win)
+
 // ============================================================================
 // Onglet BluOS Artwork Scanner (Lot 5)
 // - IP editable + test connexion
@@ -196,19 +222,36 @@ export default function TabBluos({ status }) {
         </div>
       )}
 
-      {/* --- Diagnostic dossiers (volet B) --- */}
+      {/* --- Diagnostic dossiers (volet B) enrichi (Lot 7) --- */}
       {results && results.folders && results.folders.length > 0 && (
         <div style={card}>
           <h3 style={{ fontSize: 15, marginTop: 0 }}>Diagnostic des dossiers ({results.folders.length})</h3>
-          {results.folders.map((f, i) => (
-            <div key={i} style={{ borderTop: i ? '1px solid var(--border)' : 'none', padding: '6px 0' }}>
-              <div style={{ fontSize: 13, fontWeight: 600 }}>{f.folder}
-                {f.matched_network_album && <span style={muted}> — {f.matched_network_album}</span>}
+          {results.folders.map((f, i) => {
+            const win = f.win_path || f.folder
+            const dims = (f.cover_width && f.cover_height) ? `${f.cover_width}×${f.cover_height}px` : ''
+            const kb = f.cover_size ? `${Math.round(f.cover_size / 1024)} Ko` : ''
+            const meta = [f.cover_format, dims, kb,
+              f.cover_count ? `${f.cover_count} pochette${f.cover_count > 1 ? 's' : ''}` : '',
+              (f.distinct_covers > 1) ? `${f.distinct_covers} images distinctes` : ''
+            ].filter(Boolean).join(' · ')
+            return (
+              <div key={i} style={{ borderTop: i ? '1px solid var(--border)' : 'none', padding: '8px 0' }}>
+                <div style={{ fontSize: 13, fontWeight: 600 }}>{f.folder.split('/').pop()}
+                  {f.matched_network_album && <span style={muted}> — album fautif sur le lecteur</span>}
+                </div>
+                {meta && <div style={{ ...muted, fontSize: 12 }}>{meta}</div>}
+                {f.issues && f.issues.map((it, j) => <div key={'i' + j} style={{ fontSize: 12, color: 'var(--danger)' }}>• {it}</div>)}
+                {f.notes && f.notes.map((nt, j) => <div key={'n' + j} style={{ fontSize: 12, color: 'var(--warning)' }}>◦ {nt}</div>)}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4, flexWrap: 'wrap' }}>
+                  <code style={{ fontSize: 12, background: 'var(--border)', padding: '1px 6px', borderRadius: 3 }}>{win}</code>
+                  <button onClick={e => ztCopy(win, e.currentTarget)} style={{ fontSize: 11, padding: '1px 6px' }}>copier</button>
+                  <a href={fileUri(win)} style={{ fontSize: 11 }}>ouvrir</a>
+                  <a href={ezcdUri(win)} style={{ fontSize: 11 }} title="ouvrir ce dossier dans Mp3tag">Mp3tag</a>
+                  <a href={zimadirUri(win)} style={{ fontSize: 11 }} title="ouvrir dans l'explorateur">📂 Explorer</a>
+                </div>
               </div>
-              {f.issues && f.issues.map((it, j) => <div key={'i' + j} style={{ fontSize: 12, color: 'var(--danger)' }}>• {it}</div>)}
-              {f.notes && f.notes.map((nt, j) => <div key={'n' + j} style={{ fontSize: 12, color: 'var(--warning)' }}>◦ {nt}</div>)}
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
     </div>
